@@ -21,29 +21,19 @@ class RemultCli:
     @function
     async def test(self, source: dagger.Directory) -> str:
         """Return the result of running unit tests"""
-        postgres_srv = self.test_db_srv(source)
         return await (
             self.build_env(source)
-            .with_service_binding("db", postgres_srv)
             .with_exec(["bash", "-c", "psql postgresql://postgres:postgres@db:5432/bookstore_db -a -f scripts/db/bookstore-schecma.sql"])
             .with_exec(["pnpm", "test:ci"])
             .stdout()
         )
 
     @function
-    def debug(self, source: dagger.Directory) -> dagger.Container:
-        """Return container with db for debugging tests"""
-        postgres_srv = self.test_db_srv(source)
-        return (
-            self.build_env(source)
-            .with_service_binding("db", postgres_srv)
-        )
-
-    @function
     def build_env(self, source: dagger.Directory) -> dagger.Container:
-        """Build a ready-to-use development environment"""
+        """Build a ready-to-use development environment complete with DB"""
         node_cache = dag.cache_volume("node")
         dist_cache = dag.cache_volume("dist")
+        postgres_srv = self.test_db_srv(source)
         return (
             dag.container()
             .from_("node:21-slim")
@@ -56,4 +46,5 @@ class RemultCli:
             .with_exec(["pnpm", "build"])
             .with_exec(["apt", "update"])
             .with_exec(["apt", "install", "postgresql-client", "-y"])
+            .with_service_binding("db", postgres_srv)
         )
